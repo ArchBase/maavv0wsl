@@ -1,6 +1,9 @@
 import pyarrow.parquet as pq
 
 def read_from_paraquet(file_path="dataset.parquet", limit=10):
+    need_limit = True
+    if limit==-1:
+        need_limit=False
     # Specify the path to your Parquet file
     parquet_file_path = file_path
 
@@ -24,7 +27,9 @@ def read_from_paraquet(file_path="dataset.parquet", limit=10):
             else:
                 questions.append(cell_value)
                 ans = True
-        if i > limit:
-            break
+        if need_limit:
+            if i > limit:
+                break
     #print(answers)
-    return (questions, answers)
+    print(f"readed {len(questions)} questions and {len(answers)} answers")
+    return (questions[:-2], answers[:-2])

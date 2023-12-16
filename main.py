@@ -9,7 +9,7 @@ def run_admin_file():
         root.after(100, root.destroy)  # Close the Tkinter application after a short delay
 
 def run_client_file():
-    file_path = "client.py"
+    file_path = "client_stylized.py"
     if file_path:
         subprocess.Popen(["python3", file_path])
         root.after(100, root.destroy)  # Close the Tkinter application after a short delay

@@ -1,64 +1,33 @@
-import tkinter as tk
-from tkinter import ttk
-import threading
-import time
+import numpy as np
+import random
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 
-def start_progress():
-    # Start a new thread for the progress bar
-    progress_thread = threading.Thread(target=update_progress)
-    progress_thread.start()
+# Load the trained model
+model = load_model('text_generation_model.h5')
 
-def update_progress():
-    for i in range(101):
-        time.sleep(0.1)  # Simulate a time-consuming task
-        progress_bar["value"] = i
-        root.update_idletasks()  # Update the GUI
-    progress_bar["value"] = 0
+# Function to generate text given a seed text
+def generate_text(model, start_string, num_generate=1000, temperature=1.0):
+    input_eval = [char2idx[char] for char in start_string]
+    input_eval = tf.expand_dims(input_eval, 0)
+    text_generated = []
 
-def stop_progress():
-    progress_bar["value"] = 0  # Reset the progress bar
+    model.reset_states()
+    for _ in range(num_generate):
+        predictions = model(input_eval)
+        predictions = tf.squeeze(predictions, 0) / temperature
+        predicted_id = tf.random.categorical(predictions, num_samples=1)[-1,0].numpy()
 
-def get_text_input():
-    text_content = text_input.get("1.0", tk.END)  # Get the content from the text input field
-    print("Text Input Content:")
-    print(text_content)
+        input_eval = tf.expand_dims([predicted_id], 0)
+        text_generated.append(idx2char[predicted_id])
 
-def process_number():
-    try:
-        number = int(number_entry.get())
-        number_label.config(text=f"Entered Number: {number}")
-    except ValueError:
-        number_label.config(text="Invalid input. Enter a valid number.")
+    return (start_string + ''.join(text_generated))
 
-# Create the main window
-root = tk.Tk()
-root.title("GUI Application")
+# Provide a seed text for text generation
+seed_text = "Once upon a time"
 
-# Create three buttons
-start_button = tk.Button(root, text="Start Progress", command=start_progress)
-stop_button = tk.Button(root, text="Stop Progress", command=stop_progress)
-get_text_button = tk.Button(root, text="Get Text Input", command=get_text_input)
+# Generate text based on the seed
+generated_text = generate_text(model, start_string=seed_text, num_generate=500, temperature=0.8)
 
-# Create a progress bar in determinate mode
-progress_bar = ttk.Progressbar(root, mode="determinate")
-
-# Create a multiline text input field
-text_input = tk.Text(root, height=10, width=40)
-
-# Create a label and entry for accepting numbers
-number_label = tk.Label(root, text="Enter a Number:")
-number_entry = tk.Entry(root)
-process_number_button = tk.Button(root, text="Process Number", command=process_number)
-
-# Place widgets on the grid
-start_button.grid(row=0, column=0, padx=5, pady=5)
-stop_button.grid(row=0, column=1, padx=5, pady=5)
-get_text_button.grid(row=0, column=2, padx=5, pady=5)
-progress_bar.grid(row=1, column=0, columnspan=3, padx=5, pady=5)
-text_input.grid(row=2, column=0, columnspan=3, padx=5, pady=5)
-number_label.grid(row=3, column=0, padx=5, pady=5)
-number_entry.grid(row=3, column=1, padx=5, pady=5)
-process_number_button.grid(row=3, column=2, padx=5, pady=5)
-
-# Start the Tkinter event loop
-root.mainloop()
+# Print the generated text
+print(generated_text)

@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 import pickle
 
+from keras.backend import clear_session
 from itertools import chain
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -21,7 +22,11 @@ class Model:
 
         print("\n\nreading dataset")
         (self.questions, self.answers) = gb.read_from_paraquet(limit=dataset_length)
+        self.answers = [answer for answer in self.answers if answer is not None]
+        self.questions = [question for question in self.questions if question is not None]
         all_texts = self.questions + self.answers
+        #all_texts = [text for text in all_texts if text]
+
         #print(self.questions[0] + "\n***********************************\n" + self.answers[0])
         # Tokenize the text data
         
@@ -35,15 +40,68 @@ class Model:
         self.padded_question_sequences = pad_sequences(self.question_sequences, maxlen=self.max_sequence_length, padding='post')
         self.padded_answer_sequences = pad_sequences(self.answer_sequences, maxlen=self.max_sequence_length, padding='post')
         
-
     def train_steps(self, epochs=1):
-        self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=999999999999999999)
+        clear_session()
+
+        # Define a list of batch sizes to try
+        batch_sizes_to_try = [2048, 1024, 512, 256, 128, 32, 16, 8, 4, 2, 1]
+
+        for batch_size in batch_sizes_to_try:
+            try:
+                print(f"Working with batch_size = {batch_size}")
+                
+                # Create a new model for each attempt to avoid issues with model state
+                self.model = tf.keras.Sequential([
+                    tf.keras.layers.Embedding(input_dim=len(self.tokenizer.word_index) + 1, output_dim=64, input_length=self.max_sequence_length),
+                    tf.keras.layers.LSTM(100, return_sequences=True),
+                    tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(len(self.tokenizer.word_index) + 1, activation='softmax'))
+                ])
+
+                # Compile the model
+                self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+                # Train the model with the current batch size
+                self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=batch_size)
+
+                return  # If successful, exit the loop
+            except Exception as e:
+                print(f"Batch size {batch_size} failed. Trying smaller batch size.")
+                continue
+
+        print("All batch sizes failed. Training with a default batch size.")
+        self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=8)
+
+    def train_stepsd(self, epochs=1):
+        clear_session()
+        #9999999999999999
+        batch_sizes_to_try = [9999999999999999, 999999999999, 99999999, 9999, 2048, 1024, 512, 256, 128, 32, 16, 8, 4, 2, 1]  # Add more sizes as needed
+
+        for batch_size in batch_sizes_to_try:
+            clear_session()
+            try:
+                print(f"Working with batch_size = {batch_size}")
+                self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=batch_size)
+                return  # If successful, exit the loop
+            except Exception as e:
+                print(f"Batch size {batch_size} failed. Trying smaller batch size.")
+                continue
+
+        """
+        try:
+             self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=2048)
+
+        except Exception as e:
+            clear_session()
+            print("All batch sizes failed. Training with a default batch size.")
+            self.model.fit(self.padded_question_sequences, np.expand_dims(self.padded_answer_sequences, -1), epochs=epochs, batch_size=8)
+"""
 
 
     def bake_model(self, epochs=200):
         self.model = tf.keras.Sequential([
             tf.keras.layers.Embedding(input_dim=len(self.tokenizer.word_index) + 1, output_dim=64, input_length=self.max_sequence_length),
             tf.keras.layers.LSTM(1000, return_sequences=True),
+            #tf.keras.layers.LSTM(1000, return_sequences=True),
             #tf.keras.layers.LSTM(1, return_sequences=True),
             tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(len(self.tokenizer.word_index) + 1, activation='softmax'))
         ])
@@ -91,8 +149,10 @@ class Transformer:
 
         self.model = Model(dataset_length)
         self.model.bake_model()
-    def bake_model_step_by_step(self):
-        self.model.train_steps()
+    def bake_existing_model(self, epochs):
+        self.model.train_steps(epochs=epochs)
+    def bake_model_step_by_step(self, epochs):
+        self.model.train_steps(epochs)
         
     def save(self, obj):
         # Save the object to a file
@@ -101,3 +161,5 @@ class Transformer:
         obj.config(text="Model saved")
     def generate_response(self, query):
         return self.model.generate_text(query)
+    def train_entire_dataset(self):
+        (self.questions, self.answers) = gb.read_from_paraquet(limit=-1)
